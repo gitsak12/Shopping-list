@@ -1,8 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:shopping_list/Screens/new_item_screen.dart';
+import 'package:shopping_list/data/categories.dart';
 import 'package:shopping_list/data/dummy_items.dart';
+import 'package:shopping_list/models/category.dart';
 import 'package:shopping_list/models/grocery_item.dart';
+import 'package:http/http.dart' as http;
 
 class GroceryList extends StatefulWidget {
   GroceryList({Key? key}) : super(key: key);
@@ -12,28 +17,56 @@ class GroceryList extends StatefulWidget {
 }
 
 class _GroceryListState extends State<GroceryList> {
-  final List<GroceryItem> _groceryItems = [];
+  @override
+  void initState() {
+    // TODO: implement initState
+    _loadedItems();
+  }
+
+  List<GroceryItem> _groceryItems = [];
+  var _loading = true;
+
+  void _loadedItems() async {
+    final url = Uri.https(
+        'flutter-prep-5e382-default-rtdb.firebaseio.com', 'shopping-list.json');
+    final response = await http.get(url);
+    print(response.body);
+    final Map<String, dynamic> listdata = json.decode(response.body);
+    final List<GroceryItem> loadedItems = [];
+    for (final items in listdata.entries) {
+      final category = categories.entries
+          .firstWhere(
+              (catItem) => catItem.value.title == items.value['category'])
+          .value;
+      loadedItems.add(
+        GroceryItem(
+            id: items.key,
+            name: items.value['name'],
+            quantity: (items.value['quantity']),
+            category: category),
+      );
+    }
+    setState(() {
+      _groceryItems = loadedItems;
+      _loading = false;
+    });
+  }
 
   void _addItem() async {
     final newItem = await Navigator.of(context).push<GroceryItem>(
         MaterialPageRoute(builder: (context) => NewItemScreen()));
-    if (newItem == null) {
-      return;
-    }
     setState(() {
-      _groceryItems.add(newItem);
+      _groceryItems.add(newItem!);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     Widget content = Center(
-        child: Text(
-      "Add items to your list...",
-      style: TextStyle(
-          color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
+        child: CircularProgressIndicator(
+      backgroundColor: Colors.white,
     ));
-    if (_groceryItems.isNotEmpty) {
+    if (!_loading) {
       content = ListView.builder(
           itemCount: _groceryItems.length,
           itemBuilder: (context, i) {

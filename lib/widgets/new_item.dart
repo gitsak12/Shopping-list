@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:shopping_list/data/categories.dart';
 import 'package:shopping_list/models/category.dart';
 import 'package:shopping_list/models/grocery_item.dart';
+import 'package:http/http.dart' as http;
 
 class NewItem extends StatefulWidget {
   const NewItem({Key? key}) : super(key: key);
@@ -16,16 +19,47 @@ class _NewItemState extends State<NewItem> {
   var enteredName = " ";
   var enteredQuantity = 1;
   var _selectedCategory = categories[Categories.vegetables];
-
-  void _saveItem() {
+  var _isSending = false;
+  late String _error;
+  void _saveItem() async {
     if (_formKey.currentState!.validate()) {
       // .validate() executes the validator functions
       _formKey.currentState?.save();
-      Navigator.of(context).pop(GroceryItem(
-          id: DateTime.now().toString(),
-          name: enteredName,
-          quantity: enteredQuantity,
-          category: _selectedCategory!));
+      setState(() {
+        _isSending = true;
+      });
+      final url = Uri.https('flutter-prep-5e382-default-rtdb.firebaseio.com',
+          'shopping-list.json');
+      final response = await http.post(url,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: json.encode({
+            'name': enteredName,
+            'quantity': enteredQuantity,
+            'category': _selectedCategory!.title,
+          }));
+      //print(response.statusCode);
+      print(response.body);
+      if (!context.mounted) {
+        return;
+      }
+      final resData = json.decode(response.body);
+      Navigator.of(context).pop(
+        GroceryItem(
+            id: resData['name'],
+            name: enteredName,
+            quantity: enteredQuantity,
+            category: _selectedCategory!),
+      );
+      setState(() {
+        _isSending = false;
+      });
+      // Navigator.of(context).pop(GroceryItem(
+      //     id: DateTime.now().toString(),
+      //     name: enteredName,
+      //     quantity: enteredQuantity,
+      //     category: _selectedCategory!));
     }
   }
 
@@ -139,11 +173,20 @@ class _NewItemState extends State<NewItem> {
                   width: 10,
                 ),
                 ElevatedButton(
-                  onPressed: _saveItem,
-                  child: Text(
-                    "Add Item",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
+                  onPressed: _isSending ? null : _saveItem,
+                  child: _isSending
+                      ? SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            backgroundColor: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          "Add Item",
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
                   style: ButtonStyle(
                       backgroundColor: MaterialStateProperty.all(Colors.red)),
                 ),
